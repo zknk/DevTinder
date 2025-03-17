@@ -3,7 +3,7 @@ const connectDB = require('./config/database');
 const { errorHandler } = require('./middlewares/errorHandler');
 const { admin } = require('./middlewares/auth');
 const User = require('./models/user');  // Ensure model name starts with uppercase
-
+const validator=require('validator');
 const app = express();
 const port = 3000;
 
@@ -22,12 +22,17 @@ app.post('/signUp', async (req, res) => {
         //     emailId:"asb@gmail.com",
         //     password:"Ankush@123",
         // });
+        const email =req.body.emailId;
+        if(!validator.isEmail(email))
+            throw new Error('email is not correct'); 
+        
         const user=new User(req.body);
         await user.save(); // Use await to ensure it saves before responding
         res.status(201).json({ message: 'User added successfully', user });
     } catch (error) {
         console.error("Error in signup:", error);
-        res.status(500).json({ message: "Internal Server Error", error });
+        // res.status(500).json({ message: "Internal Server Error" +error });
+        res.status(500).send(error.message);
     }
 });
 
@@ -70,15 +75,37 @@ app.delete('/user',async(req,res)=>{
     }
 })
 
-app.patch('/user',async(req,res)=>{
-    const userId=req.body.userId;
+app.patch('/user/:userId',async(req,res)=>{
+    // const userId=req.body.userId;
+    const userId=req.params?.userId;
     const data=req.body;
+
     try{
-        const user =await User.findByIdAndUpdate(userId,data,{returDocument:"after"});
+        // const Allowed_updates=['photoUrl','about','gender','age','skills'];
+        // const isUpdateAllowed=Object.keys(data).every((k)=>Allowed_updates.includes(k));
+        // if(!isUpdateAllowed){
+        //     throw new Error('update not allowed');
+        // }
+        const Allowed_updates = ['photoUrl', 'about', 'gender', 'age', 'skills'];
+
+        const unallowedUpdates = Object.keys(data).filter((k) => !Allowed_updates.includes(k));
+
+        if (unallowedUpdates.length > 0) {
+            throw new Error(`The following updates are not allowed: ${unallowedUpdates.join(', ')}`);
+        }
+
+        if(data.skils.length()>100){
+            throw new Error('skills have too large data');
+        }
+
+        // // If the code reaches here, all updates are allowed
+        // console.log('All updates are allowed');
+
+        const user =await User.findByIdAndUpdate(userId,data,{returDocument:"after",runValidators:true});
         console.log(user);
         res.send('user updated successfully');
     }catch(err){
-        res.status(400).send('somethign went worng');
+        res.status(400).send('Update failed'+err.message);
     }
 }); 
 
