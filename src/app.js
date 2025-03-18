@@ -4,6 +4,9 @@ const { errorHandler } = require('./middlewares/errorHandler');
 const { admin } = require('./middlewares/auth');
 const User = require('./models/user');  // Ensure model name starts with uppercase
 const validator=require('validator');
+const {validateSignUpData}=require('validateSignUpData');
+const bcrypt=require('bcrypt');
+
 const app = express();
 const port = 3000;
 
@@ -15,24 +18,49 @@ app.use(express.json());
 
 app.post('/signUp', async (req, res) => {
     try {
-        console.log("hello");
-        // const user = new User({
-        //     firstName: "Ankush",
-        //     lastName: "Kumar",
-        //     emailId:"asb@gmail.com",
-        //     password:"Ankush@123",
-        // });
+        // console.log("hello");
+        validateSignUpData(req);
+        const {firstName,lastName,emailId,password}=req.body;
+        const saltRound=10;
+        const passwordHash= await bcrypt.hash(password,saltRound);
+    
         const email =req.body.emailId;
         if(!validator.isEmail(email))
             throw new Error('email is not correct'); 
         
-        const user=new User(req.body);
+        const user=new User({
+            firstName,
+            lastName,
+            emailId,
+            passwordHash
+        });
+
+        user.password=passwordHash;
+
         await user.save(); // Use await to ensure it saves before responding
         res.status(201).json({ message: 'User added successfully', user });
     } catch (error) {
         console.error("Error in signup:", error);
         // res.status(500).json({ message: "Internal Server Error" +error });
         res.status(500).send(error.message);
+    }
+});
+
+app.post('/login',async(req,res)=>{
+    try{
+        validateLoginData(req);
+        const{emailId,password}=req.body;
+
+        const user=await User.findOne({emailId});
+        if(!user)
+            throw new Error('email is not registered');
+        const isPasswordCorrect=await bcrypt.compare(password,user.password);
+        
+        if(!isPasswordCorrect)
+            throw new Error('Invalid credential');
+        else res.status(200).send('login successfull')
+    }catch(err){
+        res.status(400).send(err.message);
     }
 });
 
